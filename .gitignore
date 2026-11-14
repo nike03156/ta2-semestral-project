@@ -1,0 +1,18 @@
+# raw scraped data must not be published
+data/raw/
+
+# trained models and tuner output
+models/
+tuner_results/
+*.keras
+*.h5
+*.pt
+*.safetensors
+
+# secrets (LLM API keys)
+.env
+
+# Python / Jupyter
+__pycache__/
+.ipynb_checkpoints/
+.venv/
