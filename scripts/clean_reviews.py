@@ -5,16 +5,23 @@ reviews each rule removed. The report goes into the "Data and methodology" secti
 
 Rules, in this order:
     1. empty text
-    2. the same character 10+ times in a row ("aaaaaaaaaa")
-    3. more than half of the visible characters are symbols (ASCII art, emoji walls)
-    4. Steam's language tag is not English
-    5. fewer than 90% of the letters are plain Latin letters (Russian, Chinese... tagged English)
-    6. fewer than --min-words words
-    7. duplicate of an earlier review (ignoring case, spacing and punctuation)
+    2. more than half of the visible characters are symbols (ASCII art, emoji walls, braille pictures)
+    3. Steam's language tag is not English
+    4. fewer than 90% of the letters are plain Latin letters (Russian, Chinese... tagged English)
+    5. fewer than --min-words words
+    6. duplicate of an earlier review (ignoring case, spacing and punctuation)
+
+All checks look at a Unicode-normalized copy of the text (NFKC), so English written in
+decorative characters ("Ｔｈｅ ｇａｍｅ", "𝚃𝚑𝚎 𝚐𝚊𝚖𝚎") counts as English. The saved text is the
+original one: decorative writing is part of how people write reviews.
+
+Removed rule (see failure-journal.md, 17 Nov 2026): "the same character 10+ times in a row".
+It was meant for keyboard mashing and ASCII art, but 17 of 25 sampled removals were genuine
+reviews with emphasis ("damnnnnnnnn", "I love it!!!!!!!!!!", a "----------" separator).
 
 Usage:
-    python scripts/clean_reviews.py
-    python scripts/clean_reviews.py --in data/raw/v2 --out data/clean/v2 --min-words 3
+    python scripts/clean_reviews.py --in data/raw/v3 --out data/clean/v3
+    python scripts/clean_reviews.py --in data/raw/v3 --out data/clean/v3 --min-words 3
 
 Output (data/clean/ is git-ignored: it contains scraped review text):
     reviews_clean.csv     cleaned human reviews, label 0 (human)
@@ -28,12 +35,11 @@ import csv
 import json
 import random
 import re
+import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import median
 
-# Same character 10+ times in a row: "aaaaaaaaaa", "!!!!!!!!!!", "==========".
-REPEATED_CHARS = re.compile(r"(.)\1{9,}")
 WORD = re.compile(r"[A-Za-z']+")
 WHITESPACE = re.compile(r"\s+")
 
@@ -79,12 +85,18 @@ def is_mostly_english(text):
     return sum(1 for c in letters if c.isascii()) / len(letters) >= 0.9
 
 
+def normalize(text):
+    """Unicode NFKC: turns decorative letters ("Ｔｈｅ", "𝚃𝚑𝚎") into plain ones ("The"). Used for checks only."""
+    return unicodedata.normalize("NFKC", text)
+
+
 def drop_reason(review, text, words, min_words, seen):
-    """Return the name of the first rule that removes this review, or None to keep it."""
+    """Return the name of the first rule that removes this review, or None to keep it.
+
+    `text` and `words` are the normalized versions (see normalize()).
+    """
     if not text:
         return "dropped_empty"
-    if REPEATED_CHARS.search(text):
-        return "dropped_repeated_characters"
     if is_mostly_symbols(text):
         return "dropped_mostly_symbols"
     if review.get("language") not in (None, "english"):
@@ -108,10 +120,11 @@ def clean(raw_reviews, min_words):
 
     for review in raw_reviews:
         report["input"] += 1
-        text = WHITESPACE.sub(" ", review.get("text") or "").strip()
-        words = WORD.findall(text)
+        text = WHITESPACE.sub(" ", review.get("text") or "").strip()   # saved as it is
+        check_text = normalize(text)                                    # used for the checks
+        words = WORD.findall(check_text)
 
-        reason = drop_reason(review, text, words, min_words, seen)
+        reason = drop_reason(review, check_text, words, min_words, seen)
         if reason:
             report[reason] += 1
             dropped_per_app[reason][review.get("appid")] += 1
@@ -119,7 +132,7 @@ def clean(raw_reviews, min_words):
                                     "appid": review.get("appid"), "text": text})
             continue
 
-        seen.add(duplicate_key(text))
+        seen.add(duplicate_key(check_text))
         report["kept"] += 1
         kept.append({
             "review_id": review.get("review_id"),
@@ -138,8 +151,8 @@ def clean(raw_reviews, min_words):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--in", dest="in_dir", type=Path, default=Path("data/raw"))
-    parser.add_argument("--out", type=Path, default=Path("data/clean"))
+    parser.add_argument("--in", dest="in_dir", type=Path, default=Path("data/raw/v3"))
+    parser.add_argument("--out", type=Path, default=Path("data/clean/v3"))
     parser.add_argument("--min-words", type=int, default=3,
                         help="drop reviews with fewer words (short reviews are kept on purpose)")
     parser.add_argument("--examples-per-rule", type=int, default=25,

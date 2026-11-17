@@ -3,19 +3,21 @@
 Uses Valve's documented review endpoint (no API key needed):
 https://partner.steamgames.com/doc/webapi/IUserReviewsService
 
-Why this version: the first version asked for the whole period 2015-2022 at once and
-stopped at 3,000 reviews per game. Steam returns the newest reviews first, so every review
-came from Jul-Nov 2022 (40% from the last 8 days, during the Steam Autumn Sale).
+History of this script (details in failure-journal.md):
+  v1  one date window 2015-2022, newest 3,000 per game -> every review was from Jul-Nov 2022.
+  v2  30-day windows, newest ~100 per window -> 77% of reviews from the last 3 days of a window.
+  v3  (this version) one random 7-day slice inside every calendar month.
 
-Now, for every game:
-  1. The period is cut into windows of --window-days days (default 30).
-  2. Pass 1: one page (up to 100 reviews) is requested for every window. Windows before
-     the game came out are empty, so we learn how many windows the game has reviews in.
-  3. The target (--per-game, default 3,000) is split evenly over those windows.
-     A game with reviews in 97 windows needs about 31 per window, a game with 13 windows
-     about 231, so pass 2 fetches extra pages only where a window needs more.
-  4. Inside each window the reviews are picked at random (fixed --seed, so the result
-     can be reproduced).
+How it works, for every game:
+  1. The period is cut into calendar months.
+  2. Inside every month a random slice of --slice-days days (default 7) is drawn.
+     Steam returns the newest reviews first, so we only ask for that slice: its position
+     inside the month is random, so no part of the month (end, weekends, sales) is favoured.
+  3. Pass 1: one page (up to 100 reviews) per slice. Empty slices = the game was not out yet,
+     so we learn in how many months the game has reviews.
+  4. The target (--per-game, default 3,000) is split evenly over those months; pass 2 fetches
+     extra pages only where a slice needs more.
+  5. Inside each slice the reviews are picked at random (fixed --seed, so the run can be repeated).
 Every game ends with the same number of reviews, spread over its own lifetime on Steam.
 
 Usage:
@@ -25,8 +27,8 @@ Usage:
     # full run: 12 default games, 3,000 reviews each
     python scripts/collect_steam_reviews.py
 
-Output: one JSON-lines file per game in data/raw/v2/ (data/raw/ is git-ignored:
-raw scraped data must not be published). The first collection stays untouched.
+Output: one JSON-lines file per game in data/raw/v3/ (data/raw/ is git-ignored:
+raw scraped data must not be published). Earlier collections stay untouched.
 """
 
 import argparse
@@ -62,9 +64,10 @@ DEFAULT_APPIDS = [
     578080,   # PUBG: Battlegrounds (battle royale) - added for negative reviews
 ]
 
-PAUSE_SECONDS = 1.5       # be polite: one request every 1.5 s
-PAGE_SIZE = 100           # maximum the API allows
-MAX_PAGES_PER_WINDOW = 5  # safety stop: never more than 500 reviews fetched per window
+PAUSE_SECONDS = 1.5      # be polite: one request every 1.5 s
+PAGE_SIZE = 100          # maximum the API allows
+MAX_PAGES_PER_SLICE = 5  # safety stop: never more than 500 reviews fetched per slice
+DAY = timedelta(days=1)
 
 
 def parse_date(text):
@@ -72,16 +75,25 @@ def parse_date(text):
     return datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=timezone.utc)
 
 
-def time_windows(start, end, days):
-    """Cut [start, end] into consecutive windows of `days` days.
+def months(start, end):
+    """Yield (month_start, month_end) for every calendar month between start and end, clipped to them."""
+    month_start = start.replace(day=1, hour=0, minute=0, second=0)
+    while month_start <= end:
+        next_month = (month_start + timedelta(days=32)).replace(day=1)
+        yield max(month_start, start), min(next_month - timedelta(seconds=1), end)
+        month_start = next_month
 
-    Yields (start_ts, end_ts) as Unix timestamps. The last window is shorter if needed.
+
+def random_slice(month_start, month_end, slice_days, rng):
+    """A random slice of whole days inside one month, as (start_ts, end_ts) Unix timestamps.
+
+    If the month is shorter than the slice (e.g. the last, cut-off month), the whole month is used.
     """
-    window_start = start
-    while window_start <= end:
-        window_end = min(window_start + timedelta(days=days) - timedelta(seconds=1), end)
-        yield int(window_start.timestamp()), int(window_end.timestamp())
-        window_start = window_end + timedelta(seconds=1)
+    days_in_month = (month_end - month_start).days + 1
+    first_day = rng.randrange(max(1, days_in_month - slice_days + 1))
+    slice_start = month_start + first_day * DAY
+    slice_end = min(slice_start + slice_days * DAY - timedelta(seconds=1), month_end)
+    return int(slice_start.timestamp()), int(slice_end.timestamp())
 
 
 def fetch_page(appid, cursor, start_ts, end_ts):
@@ -124,9 +136,9 @@ def keep_fields(review, appid):
     }
 
 
-def in_window(review, start_ts, end_ts):
+def in_slice(review, start_ts, end_ts):
     """Check on our side, not only trusting Steam's filter:
-    written inside this window AND never edited after the ChatGPT cutoff.
+    written inside this slice AND never edited after the ChatGPT cutoff.
 
     A review written in 2020 but edited in 2024 could contain AI text, so it is dropped.
     """
@@ -135,39 +147,39 @@ def in_window(review, start_ts, end_ts):
     return start_ts <= created <= end_ts and updated <= CUTOFF.timestamp()
 
 
-def fetch_more(appid, window):
-    """Fetch the next page of one window and add its valid reviews to the window's pool."""
-    page = fetch_page(appid, window["cursor"], window["start"], window["end"])
+def fetch_more(appid, part):
+    """Fetch the next page of one slice and add its valid reviews to the slice's pool."""
+    page = fetch_page(appid, part["cursor"], part["start"], part["end"])
     time.sleep(PAUSE_SECONDS)
-    window["pages"] += 1
+    part["pages"] += 1
     reviews = page.get("reviews", [])
     for review in reviews:
-        if in_window(review, window["start"], window["end"]):
-            window["pool"].append(review)
+        if in_slice(review, part["start"], part["end"]):
+            part["pool"].append(review)
         else:
-            window["skipped"] += 1
+            part["skipped"] += 1
     next_cursor = page.get("cursor")
-    # Stop asking this window when Steam has nothing more, or after the safety limit.
-    if not reviews or not next_cursor or next_cursor == window["cursor"] \
-            or window["pages"] >= MAX_PAGES_PER_WINDOW:
-        window["exhausted"] = True
-    window["cursor"] = next_cursor
+    # Stop asking this slice when Steam has nothing more, or after the safety limit.
+    if not reviews or not next_cursor or next_cursor == part["cursor"] \
+            or part["pages"] >= MAX_PAGES_PER_SLICE:
+        part["exhausted"] = True
+    part["cursor"] = next_cursor
 
 
 def split_evenly(pool_sizes, target):
-    """How many reviews to take from each window.
+    """How many reviews to take from each slice.
 
-    The target is split as evenly as possible. A window cannot give more than it has,
-    so what a small window cannot give is shared among the others.
+    The target is split as evenly as possible. A slice cannot give more than it has,
+    so what a small slice cannot give is shared among the others.
     Example: pools [10, 100, 100], target 90 -> [10, 40, 40].
     """
     quotas = [0] * len(pool_sizes)
     remaining = target
-    open_windows = [i for i, size in enumerate(pool_sizes) if size > 0]
-    while remaining > 0 and open_windows:
-        share = max(1, remaining // len(open_windows))
+    open_parts = [i for i, size in enumerate(pool_sizes) if size > 0]
+    while remaining > 0 and open_parts:
+        share = max(1, remaining // len(open_parts))
         still_open = []
-        for i in open_windows:
+        for i in open_parts:
             give = min(share, pool_sizes[i] - quotas[i], remaining)
             quotas[i] += give
             remaining -= give
@@ -175,36 +187,38 @@ def split_evenly(pool_sizes, target):
                 still_open.append(i)
             if remaining == 0:
                 break
-        open_windows = still_open
+        open_parts = still_open
     return quotas
 
 
-def collect_app(appid, window_bounds, target, seed, out_dir):
-    windows = [{"start": s, "end": e, "pool": [], "cursor": "*", "pages": 0,
-                "skipped": 0, "exhausted": False} for s, e in window_bounds]
+def collect_app(appid, month_bounds, target, slice_days, seed, out_dir):
+    rng = random.Random(seed + appid)   # own random numbers per game: different slices for each game
+    parts = []
+    for month_start, month_end in month_bounds:
+        start_ts, end_ts = random_slice(month_start, month_end, slice_days, rng)
+        parts.append({"start": start_ts, "end": end_ts, "pool": [], "cursor": "*",
+                      "pages": 0, "skipped": 0, "exhausted": False})
 
-    # Pass 1: one page per window. Empty windows = the game was not out yet (or no reviews).
-    for window in windows:
-        fetch_more(appid, window)
-    active = [w for w in windows if w["pool"]]
-    skipped = sum(w["skipped"] for w in windows)
+    # Pass 1: one page per slice. Empty slices = the game was not out yet (or no reviews).
+    for part in parts:
+        fetch_more(appid, part)
+    active = [p for p in parts if p["pool"]]
     if not active:
-        print(f"appid {appid}: no reviews in any window (skipped {skipped}). "
+        print(f"appid {appid}: no reviews in any slice (skipped {sum(p['skipped'] for p in parts)}). "
               "Check the app id and that Steam respects the date filter.")
         return
 
-    # Pass 2: windows that need more than one page (games with few active windows).
+    # Pass 2: slices that need more than one page (games with few active months).
     share = math.ceil(target / len(active))
-    for window in active:
-        while len(window["pool"]) < share and not window["exhausted"]:
-            fetch_more(appid, window)
+    for part in active:
+        while len(part["pool"]) < share and not part["exhausted"]:
+            fetch_more(appid, part)
 
-    # Pick at random inside each window. The seed makes the run reproducible.
-    quotas = split_evenly([len(w["pool"]) for w in windows], target)
-    rng = random.Random(seed + appid)
+    # Pick at random inside each slice.
+    quotas = split_evenly([len(p["pool"]) for p in parts], target)
     chosen = []
-    for window, quota in zip(windows, quotas):
-        chosen.extend(rng.sample(window["pool"], quota))
+    for part, quota in zip(parts, quotas):
+        chosen.extend(rng.sample(part["pool"], quota))
     chosen.sort(key=lambda r: r["timestamp_created"])
 
     out_path = out_dir / f"steam_{appid}.jsonl"
@@ -213,13 +227,13 @@ def collect_app(appid, window_bounds, target, seed, out_dir):
             out_file.write(json.dumps(keep_fields(review, appid), ensure_ascii=False) + "\n")
 
     first = datetime.fromtimestamp(active[0]["start"], timezone.utc).date()
-    skipped = sum(w["skipped"] for w in windows)
-    pages = sum(w["pages"] for w in windows)
-    print(f"appid {appid}: kept {len(chosen)}/{target} from {len(active)}/{len(windows)} windows "
-          f"(first window with reviews starts {first}), {pages} requests, "
-          f"skipped {skipped} outside the window -> {out_path}")
+    skipped = sum(p["skipped"] for p in parts)
+    pages = sum(p["pages"] for p in parts)
+    print(f"appid {appid}: kept {len(chosen)}/{target} from {len(active)}/{len(parts)} months "
+          f"(first slice with reviews starts {first}), {pages} requests, "
+          f"skipped {skipped} outside the slice -> {out_path}")
     if len(chosen) < target:
-        print("  NOTE: fewer reviews than the target; Steam has no more in these windows.")
+        print("  NOTE: fewer reviews than the target; try a longer --slice-days for this game.")
     if skipped > len(chosen):
         print("  WARNING: more reviews skipped than kept. Check that Steam respects the date filter.")
 
@@ -229,21 +243,21 @@ def main():
     parser.add_argument("--appids", type=int, nargs="+", default=DEFAULT_APPIDS)
     parser.add_argument("--start", default="2015-01-01", help="first day, YYYY-MM-DD")
     parser.add_argument("--end", default="2022-11-29", help="last day, YYYY-MM-DD (max 2022-11-29)")
-    parser.add_argument("--window-days", type=int, default=30, help="length of one time window")
+    parser.add_argument("--slice-days", type=int, default=7, help="length of the random slice in each month")
     parser.add_argument("--per-game", type=int, default=3000, help="reviews to keep per game")
     parser.add_argument("--seed", type=int, default=42, help="random seed, for reproducibility")
-    parser.add_argument("--out", type=Path, default=Path("data/raw/v2"))
+    parser.add_argument("--out", type=Path, default=Path("data/raw/v3"))
     args = parser.parse_args()
 
     start = parse_date(args.start)
-    end = min(parse_date(args.end) + timedelta(days=1, seconds=-1), CUTOFF)  # include the whole last day
-    window_bounds = list(time_windows(start, end, args.window_days))
-    print(f"{len(window_bounds)} windows of {args.window_days} days from {start.date()} to {end.date()}, "
-          f"target {args.per_game} reviews per game")
+    end = min(parse_date(args.end) + DAY - timedelta(seconds=1), CUTOFF)  # include the whole last day
+    month_bounds = list(months(start, end))
+    print(f"{len(month_bounds)} months from {start.date()} to {end.date()}, a random {args.slice_days}-day "
+          f"slice in each, target {args.per_game} reviews per game")
 
     args.out.mkdir(parents=True, exist_ok=True)
     for appid in args.appids:
-        collect_app(appid, window_bounds, args.per_game, args.seed, args.out)
+        collect_app(appid, month_bounds, args.per_game, args.slice_days, args.seed, args.out)
 
 
 if __name__ == "__main__":

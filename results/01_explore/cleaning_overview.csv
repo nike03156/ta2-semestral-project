@@ -1,9 +1,8 @@
 ,reviews,share_of_collected_%
-dropped_empty,111,0.3
-dropped_repeated_characters,332,0.9
-dropped_mostly_symbols,334,0.9
+dropped_empty,101,0.3
+dropped_mostly_symbols,409,1.1
 dropped_other_language_tag,0,0.0
-dropped_non_english_text,189,0.5
-dropped_too_short,6851,19.0
-dropped_duplicate,891,2.5
-kept,27292,75.8
+dropped_non_english_text,180,0.5
+dropped_too_short,6706,18.6
+dropped_duplicate,913,2.5
+kept,27691,76.9
