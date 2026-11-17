@@ -3,20 +3,32 @@
 Every rule runs in the order listed below and is counted, so the report shows how many
 reviews each rule removed. The report goes into the "Data and methodology" section.
 
+Rules, in this order:
+    1. empty text
+    2. the same character 10+ times in a row ("aaaaaaaaaa")
+    3. more than half of the visible characters are symbols (ASCII art, emoji walls)
+    4. Steam's language tag is not English
+    5. fewer than 90% of the letters are plain Latin letters (Russian, Chinese... tagged English)
+    6. fewer than --min-words words
+    7. duplicate of an earlier review (ignoring case, spacing and punctuation)
+
 Usage:
     python scripts/clean_reviews.py
-    python scripts/clean_reviews.py --in data/raw --out data/clean --min-words 3
+    python scripts/clean_reviews.py --in data/raw/v2 --out data/clean/v2 --min-words 3
 
-Output:
-    data/clean/reviews_clean.csv    cleaned human reviews, label 0 (human)
-    data/clean/cleaning_report.json counts per rule
+Output (data/clean/ is git-ignored: it contains scraped review text):
+    reviews_clean.csv     cleaned human reviews, label 0 (human)
+    cleaning_report.json  counts per rule, overall and per game
+    dropped_examples.csv  a random sample of removed reviews per rule, to check by eye
+                          that each rule removes what it should
 """
 
 import argparse
 import csv
 import json
+import random
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import median
 
@@ -29,6 +41,7 @@ OUT_FIELDS = [
     "review_id", "appid", "text", "voted_up", "word_count",
     "playtime_at_review_min", "votes_up", "timestamp_created", "label",
 ]
+EXAMPLE_FIELDS = ["rule", "review_id", "appid", "text"]
 
 
 def load_raw(in_dir):
@@ -66,48 +79,47 @@ def is_mostly_english(text):
     return sum(1 for c in letters if c.isascii()) / len(letters) >= 0.9
 
 
+def drop_reason(review, text, words, min_words, seen):
+    """Return the name of the first rule that removes this review, or None to keep it."""
+    if not text:
+        return "dropped_empty"
+    if REPEATED_CHARS.search(text):
+        return "dropped_repeated_characters"
+    if is_mostly_symbols(text):
+        return "dropped_mostly_symbols"
+    if review.get("language") not in (None, "english"):
+        return "dropped_other_language_tag"
+    if not is_mostly_english(text):
+        return "dropped_non_english_text"
+    if len(words) < min_words:
+        return "dropped_too_short"
+    if duplicate_key(text) in seen:
+        return "dropped_duplicate"
+    return None
+
+
 def clean(raw_reviews, min_words):
-    """Apply the rules in order. Returns (kept rows, report counter)."""
+    """Apply the rules in order. Returns (kept rows, report counter, per-game drops, dropped reviews)."""
     report = Counter()
+    dropped_per_app = defaultdict(Counter)   # rule -> appid -> how many removed
+    dropped = defaultdict(list)              # rule -> removed reviews (for the examples file)
     seen = set()
     kept = []
 
     for review in raw_reviews:
         report["input"] += 1
-
         text = WHITESPACE.sub(" ", review.get("text") or "").strip()
-        if not text:
-            report["dropped_empty"] += 1
-            continue
-
-        if REPEATED_CHARS.search(text):
-            report["dropped_repeated_characters"] += 1
-            continue
-
-        if is_mostly_symbols(text):
-            report["dropped_mostly_symbols"] += 1
-            continue
-
-        language = review.get("language")
-        if language not in (None, "english"):
-            report["dropped_other_language_tag"] += 1
-            continue
-
-        if not is_mostly_english(text):
-            report["dropped_non_english_text"] += 1
-            continue
-
         words = WORD.findall(text)
-        if len(words) < min_words:
-            report["dropped_too_short"] += 1
+
+        reason = drop_reason(review, text, words, min_words, seen)
+        if reason:
+            report[reason] += 1
+            dropped_per_app[reason][review.get("appid")] += 1
+            dropped[reason].append({"rule": reason, "review_id": review.get("review_id"),
+                                    "appid": review.get("appid"), "text": text})
             continue
 
-        key = duplicate_key(text)
-        if key in seen:
-            report["dropped_duplicate"] += 1
-            continue
-        seen.add(key)
-
+        seen.add(duplicate_key(text))
         report["kept"] += 1
         kept.append({
             "review_id": review.get("review_id"),
@@ -121,7 +133,7 @@ def clean(raw_reviews, min_words):
             "label": 0,  # 0 = human; AI-generated reviews will get label 1
         })
 
-    return kept, report
+    return kept, report, dropped_per_app, dropped
 
 
 def main():
@@ -130,13 +142,16 @@ def main():
     parser.add_argument("--out", type=Path, default=Path("data/clean"))
     parser.add_argument("--min-words", type=int, default=3,
                         help="drop reviews with fewer words (short reviews are kept on purpose)")
+    parser.add_argument("--examples-per-rule", type=int, default=25,
+                        help="how many removed reviews per rule go into dropped_examples.csv")
+    parser.add_argument("--seed", type=int, default=42, help="random seed for picking the examples")
     args = parser.parse_args()
 
     raw = list(load_raw(args.in_dir))
     if not raw:
         raise SystemExit(f"No steam_*.jsonl files found in {args.in_dir}")
 
-    kept, report = clean(raw, args.min_words)
+    kept, report, dropped_per_app, dropped = clean(raw, args.min_words)
 
     args.out.mkdir(parents=True, exist_ok=True)
     with (args.out / "reviews_clean.csv").open("w", newline="", encoding="utf-8") as f:
@@ -144,10 +159,20 @@ def main():
         writer.writeheader()
         writer.writerows(kept)
 
+    # A random sample per rule (not the first ones), so every game can appear in it.
+    rng = random.Random(args.seed)
+    with (args.out / "dropped_examples.csv").open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=EXAMPLE_FIELDS)
+        writer.writeheader()
+        for rule in sorted(dropped):
+            reviews = dropped[rule]
+            writer.writerows(rng.sample(reviews, min(args.examples_per_rule, len(reviews))))
+
     summary = dict(report)
     summary["min_words"] = args.min_words
     summary["median_word_count_kept"] = median(r["word_count"] for r in kept) if kept else None
     summary["kept_per_app"] = dict(Counter(r["appid"] for r in kept))
+    summary["dropped_per_app"] = {rule: dict(counts) for rule, counts in sorted(dropped_per_app.items())}
     (args.out / "cleaning_report.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
 
