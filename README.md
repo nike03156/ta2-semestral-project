@@ -92,6 +92,7 @@ The median kept review is 19 words long. We read a random sample of 25 removed r
 - Year and game are linked: 2015–2016 reviews come only from the oldest games.
 - The human reviews are from 2015–2022, the AI reviews will be from 2026, so the model could partly learn "old vs new" language. We will check errors by year.
 - Mixed-language reviews and reviews edited after 29 Nov 2022 are excluded.
+- The language check only catches non-Latin scripts: a non-English review written in plain Latin letters passes (e.g. Vietnamese without accents: "game hay vcl du ma no'").
 
 ### AI reviews
 
