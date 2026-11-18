@@ -13,8 +13,8 @@ Last updated: 18 November 2026.
 | Human review collection | done (v3): 36,000 Steam reviews from 12 games, spread over 2015 – Nov 2022 |
 | Cleaning | done: 27,691 reviews kept (76.9%) |
 | Exploration of the human reviews | done: `notebooks/01_explore_human_reviews.ipynb` |
-| AI review generation | not started (waiting for API access) |
-| Train/validation/test split | not started |
+| AI review generation | done: `notebooks/02_generate_ai_reviews.ipynb` + length fix `02b_fix_lengths.ipynb`: 11,609 AI reviews (Mistral 8,843, Qwen 2,766 held out) |
+| Train/validation/test split | done: `scripts/build_dataset.py` → `data/final/dataset_v1.csv` (one file for all later steps) |
 | Models (dummy, MLP + TF-IDF, CNN, BiLSTM, DistilBERT) | not started |
 | Error analysis | not started |
 
@@ -24,10 +24,12 @@ Last updated: 18 November 2026.
 | --- | --- |
 | `scripts/collect_steam_reviews.py` | collects human reviews written before 30 Nov 2022 |
 | `scripts/clean_reviews.py` | cleans the raw reviews and counts what each rule removes |
+| `scripts/build_dataset.py` | combines human and AI reviews into `data/final/dataset_v1.csv` with a fixed split |
 | `failure-journal.md` | dated list of what we tried and what did not work |
 | `data/sample/` | small anonymised sample of the data (the full data is not published) |
 | `data/raw/`, `data/clean/` | collected and cleaned reviews, kept locally only (git-ignored) |
-| `notebooks/` | exploration, training and evaluation notebooks |
+| `notebooks/` | `01` exploration of the human reviews, `02` AI review generation (Colab); training and evaluation to follow |
+| `data/ai/` | generated AI reviews, kept on the team's Google Drive (git-ignored) |
 | `results/` | metrics table, confusion matrices, analysed failure cases |
 
 ## Data
@@ -96,7 +98,47 @@ The median kept review is 19 words long. We read a random sample of 25 removed r
 
 ### AI reviews
 
-Not generated yet. Plan: one AI review per human review, matched on game, recommendation and length, from several LLMs, with one LLM kept out of training as a generalization test.
+Generated in Google Colab (free T4 GPU) with two open models from Hugging Face, loaded in 4-bit:
+
+| Generator | Model | Reviews | Role |
+| --- | --- | --- | --- |
+| `mistral` | `mistralai/Mistral-7B-Instruct-v0.3` | 9,000 | training, validation, test |
+| `qwen` | `Qwen/Qwen2.5-7B-Instruct` | 3,000 | **held out**: only a test of an LLM the detector never saw |
+
+- **Pairs.** 1,000 human reviews per game (12,000) are sampled at random (seed 42) from reviews with at most 300 words. Each gets one AI twin with the same game, thumbs up/down and target length. `pair_id` is the human `review_id`. Human reviews over 300 words (2.6%) are not paired.
+- **Why 12,000 and not all 27,691.** A fixed 1,000 per game gives every game the same weight; generation takes about 2.5 hours on a Colab L4 instead of over 6; and about 24,000 labelled reviews is enough for this binary task. `reviews_clean.csv` stays complete: the chosen 12,000 are listed in `pairs.csv`, and the other 15,691 human reviews are a **reserve** test set for the false-positive rate (real players flagged as AI).
+- **Split** (`scripts/build_dataset.py`, see "Final dataset" below). The Mistral pairs are split 70/15/15 into train, validation and test **by pair**, stratified by game: a human review and its AI twin always land in the same set, so the model cannot learn the pair instead of the writing style. The Qwen pairs (5,516 reviews) are only a held-out test.
+- **Prompt (v2).** The model writes as the player ("You have played X and you are writing your own user review of it on Steam... first person, not like an advertisement"). Prompt v1 gave advert-like text, see the failure journal. One prompt per review, containing only the game name, the recommendation, the target length and one of five styles (casual, detailed, emotional, humorous, plain), picked at random. The human review text is never sent to the model.
+- **Sampling.** temperature 0.9, top_p 0.95, repetition penalty 1.05, the same for both models. Prompt, model and settings are stored with every raw output.
+- **Length fix.** The models ignore short targets (median AI 29 words vs. target 18 in the first Mistral run). Reviews far from their target length (more than 1.5 × target + 3 words, or fewer than target / 1.5 − 3) are regenerated with a hard limit ("at most / at least N words"), 4 candidates each, and the closest is kept (`length_fix = True`). This is a separate notebook, `notebooks/02b_fix_lengths.ipynb`, which writes a new file `ai_reviews_clean_lengthfix.csv`; the original `ai_reviews_clean.csv` from notebook 02 is kept for comparison.
+- **Cleaning.** Chat wrappers are stripped and counted ("Here is a review:", "Review:", markdown, surrounding quotes, "(Word count: 25)"). Then the same rules as for the human reviews are applied, from `scripts/clean_reviews.py`.
+
+Output on the team Drive (`TA2/data/ai/v1/`): `pairs.csv`, `raw_<generator>.jsonl`, `ai_reviews_clean.csv` (`review_id, pair_id, appid, text, voted_up, word_count, target_words, generator, prompt_style, held_out, label`), `generation_report.json`, `postprocess_examples.csv`.
+
+Known limits: only 7B open models, which may be easier to detect than large commercial models; the detector learns "these models under our prompts", not all AI text.
+
+### Final dataset (`data/final/dataset_v1.csv`)
+
+One file for every later notebook, built by `scripts/build_dataset.py` (seed 42). Only complete pairs are used, so every paired split is exactly 50/50; 8 Qwen reviews that still contained Chinese characters were dropped together with their pair.
+
+| `split` | Human | AI | Use |
+| --- | --- | --- | --- |
+| `train` | 6,190 | 6,190 (Mistral) | training |
+| `val` | 1,326 | 1,326 (Mistral) | tuning, model choice |
+| `test` | 1,327 | 1,327 (Mistral) | final comparison of models |
+| `heldout_qwen` | 2,758 | 2,758 (Qwen) | test on an LLM never seen in training |
+| `reserve_human` | 16,090 | 0 | false-positive rate on real players never seen |
+| **Total** | **27,691** | **11,601** | **39,292 rows** |
+
+The Mistral pairs are split 70/15/15 **by pair** and stratified by game: a human review and its AI twin are always in the same split. Every later notebook starts from this one file:
+
+```python
+df = pd.read_csv("data/final/dataset_v1.csv")
+train, val, test = (df[df.split == s] for s in ["train", "val", "test"])
+X_train, y_train = train.text, train.label        # 0 = human, 1 = AI
+```
+
+A human review and its AI twin share the same `pair_id`. Columns: `review_id, pair_id, split, label (0 human / 1 AI), generator (human / mistral / qwen), appid, game, voted_up, text, word_count, target_words, prompt_style, length_fix, year` (`year` only for human reviews).
 
 ## Data schema
 
@@ -129,6 +171,8 @@ Author ids are never stored. Raw and cleaned review text is not published in thi
 pip install -r requirements.txt
 python scripts/collect_steam_reviews.py      # about 1 hour; writes data/raw/v3/
 python scripts/clean_reviews.py              # writes data/clean/v3/
+# notebooks/02_generate_ai_reviews.ipynb and 02b_fix_lengths.ipynb in Colab -> data/ai/v1/
+python scripts/build_dataset.py              # writes data/final/dataset_v1.csv
 ```
 
 Then run `notebooks/01_explore_human_reviews.ipynb`. The cleaning step writes `reviews_clean.csv`, `cleaning_report.json` (counts per rule, overall and per game) and `dropped_examples.csv` (25 randomly picked removed reviews per rule) into `data/clean/v3/`.

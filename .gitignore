@@ -18,3 +18,9 @@ __pycache__/
 .venv/
 
 data/clean/
+
+# generated AI reviews (kept on the team Drive)
+data/ai/
+
+# combined dataset with review text
+data/final/
