@@ -1,0 +1,16 @@
+,0
+starts_lowercase,-3.0
+lowercase_i,-1.93
+no_apostrophe,-1.24
+uppercase_share,-0.47
+ellipsis,-0.22
+questions,-0.15
+newlines,0.0
+hashtag,0.13
+emoji,0.35
+words,0.97
+exclamations,0.98
+ai_words,1.32
+type_token_ratio,1.46
+ends_with_punct,1.57
+avg_word_len,1.69

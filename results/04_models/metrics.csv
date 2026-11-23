@@ -1,0 +1,25 @@
+model,split,n,accuracy,precision_ai,recall_ai,f1_ai,roc_auc,false_positive_rate
+MLP tfidf (default),val,2652,0.9872,0.9864,0.9879,0.9872,0.999,0.0136
+MLP tfidf (default),test,2654,0.9857,0.9857,0.9857,0.9857,0.9985,0.0143
+MLP tfidf (default),heldout_qwen,5516,0.8691,0.9797,0.7538,0.852,0.955,0.0156
+MLP tfidf (default),reserve_human,16090,,,,,,0.017
+MLP tfidf (keep_case_punct),val,2652,0.9928,0.9932,0.9925,0.9928,0.9998,0.0068
+MLP tfidf (keep_case_punct),test,2654,0.9928,0.994,0.9917,0.9928,0.9994,0.006
+MLP tfidf (keep_case_punct),heldout_qwen,5516,0.849,0.9893,0.7056,0.8237,0.946,0.0076
+MLP tfidf (keep_case_punct),reserve_human,16090,,,,,,0.0074
+MLP tfidf (default_no_stopwords),val,2652,0.9827,0.9908,0.9744,0.9825,0.9977,0.009
+MLP tfidf (default_no_stopwords),test,2654,0.9812,0.9946,0.9676,0.9809,0.9957,0.0053
+MLP tfidf (default_no_stopwords),heldout_qwen,5516,0.8109,0.9847,0.6316,0.7696,0.9176,0.0098
+MLP tfidf (default_no_stopwords),reserve_human,16090,,,,,,0.0101
+CNN,val,2652,0.986,0.9924,0.9796,0.986,0.9988,0.0075
+CNN,test,2654,0.9876,0.9946,0.9804,0.9875,0.999,0.0053
+CNN,heldout_qwen,5516,0.8193,0.983,0.6497,0.7824,0.9665,0.0112
+CNN,reserve_human,16090,,,,,,0.0098
+BiLSTM,val,2652,0.9894,0.9917,0.9872,0.9894,0.9991,0.0083
+BiLSTM,test,2654,0.9872,0.9894,0.9849,0.9872,0.9993,0.0106
+BiLSTM,heldout_qwen,5516,0.7839,0.9804,0.5794,0.7284,0.9435,0.0116
+BiLSTM,reserve_human,16090,,,,,,0.011
+DistilBERT (cased),val,2652,0.994,0.9925,0.9955,0.994,0.9997,0.0075
+DistilBERT (cased),test,2654,0.994,0.9917,0.9962,0.994,0.9999,0.0083
+DistilBERT (cased),heldout_qwen,5516,0.8816,0.9902,0.7708,0.8669,0.9704,0.0076
+DistilBERT (cased),reserve_human,16090,,,,,,0.0112

@@ -1,0 +1,16 @@
+,human (train),mistral (train),qwen (held out)
+words,39.174,42.952,35.454
+avg_word_len,4.277,5.469,5.036
+ends_with_punct,0.599,0.983,0.992
+exclamations,0.277,1.314,0.789
+questions,0.083,0.042,0.077
+ellipsis,0.065,0.023,0.042
+uppercase_share,0.056,0.041,0.035
+starts_lowercase,0.207,0.0,0.0
+lowercase_i,0.096,0.0,0.0
+no_apostrophe,0.077,0.0,0.0
+emoji,0.004,0.052,0.0
+hashtag,0.003,0.005,0.001
+newlines,0.0,0.0,0.0
+ai_words,0.058,0.868,0.323
+type_token_ratio,0.883,0.93,0.93

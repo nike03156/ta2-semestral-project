@@ -1,0 +1,11 @@
+model,val,test,heldout_qwen,Qwen recall,FPR reserve
+dummy,0.5,0.5,0.5,0.0,0.0
+length only,0.528,0.53,0.478,0.405,0.446
+simple features,0.905,0.916,0.813,0.713,0.119
+TF-IDF + logistic regression,0.99,0.99,0.828,0.671,0.011
+MLP tfidf (default),0.987,0.986,0.869,0.754,0.017
+MLP tfidf (keep_case_punct),0.993,0.993,0.849,0.706,0.007
+MLP tfidf (default_no_stopwords),0.983,0.981,0.811,0.632,0.01
+CNN,0.986,0.988,0.819,0.65,0.01
+BiLSTM,0.989,0.987,0.784,0.579,0.011
+DistilBERT (cased),0.994,0.994,0.882,0.771,0.011

@@ -1,0 +1,13 @@
+split,length,n,accuracy
+test,1-5 words,354,0.975
+heldout_qwen,1-5 words,626,0.744
+heldout_qwen,6-10 words,1030,0.785
+test,6-10 words,502,0.984
+test,11-20 words,554,0.993
+heldout_qwen,11-20 words,1214,0.831
+heldout_qwen,21-50 words,1358,0.868
+test,21-50 words,650,0.992
+heldout_qwen,51-100 words,722,0.892
+test,51-100 words,350,0.997
+test,101-1000 words,244,1.0
+heldout_qwen,101-1000 words,566,0.816
