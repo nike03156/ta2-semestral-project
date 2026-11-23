@@ -6,7 +6,7 @@ Text Analytics 2 semestral project. We test whether a classifier can tell from t
 
 ## Status
 
-Last updated: 18 November 2026.
+Last updated: 23 November 2026.
 
 | Part | State |
 | --- | --- |
@@ -15,8 +15,32 @@ Last updated: 18 November 2026.
 | Exploration of the human reviews | done: `notebooks/01_explore_human_reviews.ipynb` |
 | AI review generation | done: `notebooks/02_generate_ai_reviews.ipynb` + length fix `02b_fix_lengths.ipynb`: 11,609 AI reviews (Mistral 8,843, Qwen 2,766 held out) |
 | Train/validation/test split | done: `scripts/build_dataset.py` → `data/final/dataset_v1.csv` (one file for all later steps) |
-| Models (dummy, MLP + TF-IDF, CNN, BiLSTM, DistilBERT) | not started |
+| Simple features and baselines | done: `notebooks/03_features_and_baselines.ipynb` |
+| Models (MLP + ablation, CNN, BiLSTM, DistilBERT) | done: `notebooks/04_keras_models.ipynb`, `05_distilbert.ipynb` |
 | Error analysis | not started |
+
+## Results
+
+All models are trained on the Mistral `train` split only. **Test** = Mistral reviews never seen in training; **Qwen** = reviews from an LLM never seen at all; **FPR** = share of the 16,090 human-only reserve reviews flagged as AI (real players falsely accused).
+
+| Model | val | test | Qwen | Qwen recall | FPR |
+| --- | --- | --- | --- | --- | --- |
+| Dummy (always "human") | 50.0% | 50.0% | 50.0% | 0.0% | 0.0% |
+| Length only | 52.8% | 53.0% | 47.8% | 40.5% | 44.6% |
+| 15 simple features (logistic regression) | 90.5% | 91.6% | 81.3% | 71.3% | 11.9% |
+| TF-IDF + logistic regression | 99.0% | 99.0% | 82.8% | 67.1% | 1.1% |
+| MLP, TF-IDF, lowercase, no punctuation | 98.7% | 98.6% | 86.9% | 75.4% | 1.7% |
+| MLP, TF-IDF, case and punctuation kept | 99.3% | 99.3% | 84.9% | 70.6% | 0.7% |
+| MLP, TF-IDF, stopwords removed | 98.3% | 98.1% | 81.1% | 63.2% | 1.0% |
+| CNN | 98.6% | 98.8% | 81.9% | 65.0% | 1.0% |
+| BiLSTM | 98.9% | 98.7% | 78.4% | 57.9% | 1.1% |
+| **DistilBERT (cased)** | **99.4%** | **99.4%** | **88.2%** | **77.1%** | 1.1% |
+
+- **The known generator is easy:** every reasonable model reaches 98–99% on Mistral; length alone is useless (53%), so the length fix worked.
+- **The unseen generator is the real problem:** on Qwen the models range from 78% to 88%. The pre-trained DistilBERT and the simple MLP generalise best; the more complex models trained from scratch generalise worst (CNN 82%, BiLSTM 78%): they learn the training generator's style. Even the best model misses about a quarter of Qwen reviews.
+- **Simple giveaways:** humans start with a lowercase letter (21%), write a lowercase "i" (10%) or skip apostrophes (8%); Mistral and Qwen never do. AI writes about the game's known features (*mind-bending*, *Appalachia*, *Geralt*), people about their purchase and patches (*refund*, *sale*, *fixed*, *edit*).
+- **Accuracy is not enough:** the simple features reach 91.6% but would flag 12% of real players.
+- Each neural model was trained once; differences of 1–2 points may be noise. No hyperparameter tuning (see notebook 04 for why). The model architectures (MLP, CNN, BiLSTM, DistilBERT settings) are adapted from Kryštof Žák's earlier coursework (4IZ175, sentiment classification); what was changed for this task and why is listed at the start of notebook 04.
 
 ## Where to find what
 
@@ -28,9 +52,9 @@ Last updated: 18 November 2026.
 | `failure-journal.md` | dated list of what we tried and what did not work |
 | `data/sample/` | small anonymised sample of the data (the full data is not published) |
 | `data/raw/`, `data/clean/` | collected and cleaned reviews, kept locally only (git-ignored) |
-| `notebooks/` | `01` exploration of the human reviews, `02` AI review generation (Colab); training and evaluation to follow |
+| `notebooks/` | `01` exploration of human reviews, `02`/`02b` AI generation and length fix, `03` simple features and baselines, `04` Keras models, `05` DistilBERT (all run in Colab) |
 | `data/ai/` | generated AI reviews, kept on the team's Google Drive (git-ignored) |
-| `results/` | metrics table, confusion matrices, analysed failure cases |
+| `results/` | metrics tables, run log, charts and confusion matrices per notebook (`03_baselines/`, `04_models/`) |
 
 ## Data
 
@@ -173,6 +197,7 @@ python scripts/collect_steam_reviews.py      # about 1 hour; writes data/raw/v3/
 python scripts/clean_reviews.py              # writes data/clean/v3/
 # notebooks/02_generate_ai_reviews.ipynb and 02b_fix_lengths.ipynb in Colab -> data/ai/v1/
 python scripts/build_dataset.py              # writes data/final/dataset_v1.csv
+# notebooks 03 (CPU), 04 and 05 (GPU) in Colab -> results/03_baselines/, results/04_models/
 ```
 
 Then run `notebooks/01_explore_human_reviews.ipynb`. The cleaning step writes `reviews_clean.csv`, `cleaning_report.json` (counts per rule, overall and per game) and `dropped_examples.csv` (25 randomly picked removed reviews per rule) into `data/clean/v3/`.
