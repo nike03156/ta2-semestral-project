@@ -1,0 +1,4 @@
+reviews,edit,tfidf_lr_before,tfidf_lr_after,simple_before,simple_after
+Qwen AI,sloppy,0.671,0.477,0.713,0.0
+Mistral test AI,sloppy,0.991,0.944,0.916,0.001
+Human reserve,polish,0.011,0.016,0.119,0.195

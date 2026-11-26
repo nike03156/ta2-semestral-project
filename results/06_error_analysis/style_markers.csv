@@ -1,0 +1,7 @@
+,human (test),human (reserve),mistral (test),qwen (all),qwen missed,qwen caught
+starts 'This game',0.048,0.046,0.0,0.132,0.411,0.048
+contains the word 'game',0.61,0.612,0.216,0.339,0.641,0.249
+contains 'Can't wait',0.002,0.003,0.12,0.002,0.0,0.002
+starts 'Absolutely',0.003,0.004,0.222,0.24,0.027,0.303
+contains '!',0.139,0.16,0.77,0.64,0.495,0.683
+AI words per review,0.042,0.061,0.845,0.323,0.128,0.381

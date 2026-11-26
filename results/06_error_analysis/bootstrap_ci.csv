@@ -1,0 +1,21 @@
+split,comparison,accuracy,ci_low,ci_high
+test,distilbert,0.994,0.9906,0.9966
+test,mlp_lowercase,0.9857,0.9808,0.9902
+test,mlp_case_punct,0.9928,0.9894,0.9959
+test,tfidf_lr,0.9898,0.9857,0.9936
+test,cnn,0.9876,0.983,0.9917
+test,bilstm,0.9872,0.9827,0.9913
+test,distilbert minus mlp_lowercase,0.0083,0.0034,0.0132
+test,distilbert minus mlp_case_punct,0.0011,-0.0026,0.0049
+test,distilbert minus tfidf_lr,0.0041,0.0,0.0083
+test,mlp_lowercase minus mlp_case_punct,-0.0072,-0.0121,-0.0026
+heldout_qwen,distilbert,0.8816,0.8731,0.8898
+heldout_qwen,mlp_lowercase,0.8691,0.8602,0.8775
+heldout_qwen,mlp_case_punct,0.849,0.8397,0.8581
+heldout_qwen,tfidf_lr,0.8283,0.8185,0.8379
+heldout_qwen,cnn,0.8193,0.8093,0.829
+heldout_qwen,bilstm,0.7839,0.773,0.7948
+heldout_qwen,distilbert minus mlp_lowercase,0.0125,0.0038,0.021
+heldout_qwen,distilbert minus mlp_case_punct,0.0326,0.0243,0.0406
+heldout_qwen,distilbert minus tfidf_lr,0.0533,0.0451,0.0611
+heldout_qwen,mlp_lowercase minus mlp_case_punct,0.0201,0.0129,0.0277

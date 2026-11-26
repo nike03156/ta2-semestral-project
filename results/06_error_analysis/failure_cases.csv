@@ -1,0 +1,21 @@
+case,game,voted_up,prompt_style,p_distilbert,p_tfidf_lr,text
+Qwen review missed by DistilBERT,Hollow Knight,False,plain,0.0,0.249,"This game is overpriced in my opinion. The story could have been much more intriguing with better character development. The game mechanics are fine, but nothin"
+Qwen review missed by DistilBERT,Sid Meier's Civilization VI,True,humorous,0.0,0.034,This game is like having history as your personal plaything!
+Qwen review missed by DistilBERT,Stardew Valley,True,plain,0.0,0.015,This game is so relaxing and fun!
+Qwen review missed by DistilBERT,The Witcher 3: Wild Hunt,True,humorous,0.0,0.077,This game? Worth every hair on your head and then some!
+Qwen review missed by DistilBERT,Cyberpunk 2077,True,humorous,0.0,0.013,"This game is so bad, it's good!"
+Qwen review missed by DistilBERT,Slay the Spire,True,humorous,0.0,0.044,"Finally found a game that makes me feel like a real card wizard instead of just a ""spend money to get the best cards"" wizard. Highly recommend if you want to fe"
+Qwen review missed by DistilBERT,PUBG: Battlegrounds,True,casual,0.0,0.012,"This game is sick, super fun to play with friends!"
+Qwen review missed by DistilBERT,Stardew Valley,True,detailed,0.0,0.013,This game is super fun with its farming and fishing mini-games.
+Qwen review missed by DistilBERT,Cyberpunk 2077,True,casual,0.0,0.242,"Solid game, bugs and all. Worth the playthrough for story and world."
+Qwen review missed by DistilBERT,Fallout 76,True,casual,0.0,0.231,"This game was a decent surprise. Had better graphics and some fun moments, but the social aspect is hit or miss. Overall, worth a play if you’re into open-world"
+Real player flagged by DistilBERT,Cyberpunk 2077,True,,1.0,0.601,"Finished to create my character, let's explore Nightcity!"
+Real player flagged by DistilBERT,Hades,True,,1.0,0.6,Refreshing to find this gem! It's like the warm embrace of twin C cup's!
+Real player flagged by DistilBERT,Slay the Spire,True,,1.0,0.854,"I Highly recommand this game, worth every penny, ton of fun, can't stop playing!"
+Real player flagged by DistilBERT,The Witcher 3: Wild Hunt,True,,1.0,0.862,Perfection! A must-have!
+Real player flagged by DistilBERT,Fallout 76,True,,1.0,0.759,Excellent multiplayer or solo! Post Apocalyptic survival fun!
+Real player flagged by DistilBERT,The Witcher 3: Wild Hunt,True,,1.0,0.257,"Blood & broken bones: Engaging story-line, hours worth of content, challenging at times, thoroughly enjoyed it."
+Real player flagged by DistilBERT,Hollow Knight,True,,1.0,0.494,"Awaken into a sprawling underground world that's teeming with mystery, but feels strangely familiar. The atmosphere and music are intoxicating, creating environ"
+Real player flagged by DistilBERT,Fallout 76,True,,1.0,0.084,"Waited a year to play it, Wastelanders is pretty fun!"
+Real player flagged by DistilBERT,Sid Meier's Civilization VI,True,,1.0,0.689,Hours upon hours of fun!
+Real player flagged by DistilBERT,Terraria,True,,1.0,0.227,"Terraria is an absolute blast! Think Minecraft, only in a 2D-sidescrolling, platforming format, with boatloads more content and a bigger focus on rpg elements a"

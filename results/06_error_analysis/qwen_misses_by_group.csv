@@ -1,0 +1,28 @@
+group,value,n,miss_rate
+prompt_style,casual,513,0.222
+prompt_style,detailed,606,0.157
+prompt_style,emotional,516,0.145
+prompt_style,humorous,605,0.364
+prompt_style,plain,518,0.247
+target_bucket,"(0, 5]",313,0.38
+target_bucket,"(10, 20]",607,0.245
+target_bucket,"(100, 1000]",283,0.177
+target_bucket,"(20, 50]",679,0.168
+target_bucket,"(5, 10]",515,0.291
+target_bucket,"(50, 100]",361,0.139
+voted_up,False,503,0.27
+voted_up,True,2255,0.22
+game,Battlefield 2042,259,0.189
+game,Cyberpunk 2077,240,0.262
+game,Fallout 76,242,0.252
+game,Hades,209,0.057
+game,Hollow Knight,216,0.148
+game,PUBG: Battlegrounds,233,0.292
+game,Portal 2,217,0.221
+game,Sid Meier's Civilization VI,237,0.304
+game,Slay the Spire,212,0.269
+game,Stardew Valley,238,0.248
+game,Terraria,208,0.26
+game,The Witcher 3: Wild Hunt,247,0.231
+length_fix,False,2378,0.235
+length_fix,True,380,0.192

@@ -6,7 +6,7 @@ Text Analytics 2 semestral project. We test whether a classifier can tell from t
 
 ## Status
 
-Last updated: 23 November 2026.
+Last updated: 26 November 2026.
 
 | Part | State |
 | --- | --- |
@@ -17,7 +17,7 @@ Last updated: 23 November 2026.
 | Train/validation/test split | done: `scripts/build_dataset.py` → `data/final/dataset_v1.csv` (one file for all later steps) |
 | Simple features and baselines | done: `notebooks/03_features_and_baselines.ipynb` |
 | Models (MLP + ablation, CNN, BiLSTM, DistilBERT) | done: `notebooks/04_keras_models.ipynb`, `05_distilbert.ipynb` |
-| Error analysis | not started |
+| Error analysis | done: `scripts/error_analysis.py` → `results/06_error_analysis/`, summary in [Analysed failure cases](#analysed-failure-cases) |
 
 ## Results
 
@@ -42,6 +42,26 @@ All models are trained on the Mistral `train` split only. **Test** = Mistral rev
 - **Accuracy is not enough:** the simple features reach 91.6% but would flag 12% of real players.
 - Each neural model was trained once; differences of 1–2 points may be noise. No hyperparameter tuning (see notebook 04 for why). The model architectures (MLP, CNN, BiLSTM, DistilBERT settings) are adapted from Kryštof Žák's earlier coursework (4IZ175, sentiment classification); what was changed for this task and why is listed at the start of notebook 04.
 
+## Analysed failure cases
+
+All numbers come from `results/06_error_analysis/` (script `scripts/error_analysis.py`). It uses the saved predictions of notebooks 04 and 05 and refits the two scikit-learn baselines; nothing is retrained on a GPU.
+
+**1. Qwen reviews that start with "This game" are taken for human.** DistilBERT misses 632 of the 2,758 Qwen reviews, and it is sure about it: the median AI score of a missed review is 0.000. Mistral never starts a review with "This game" (0.0%), so in training every review that does is human. 41.1% of the missed Qwen reviews start this way (13.2% of all Qwen reviews, 4.8% of human ones). Example, AI score 0.000:
+
+> *This game is so relaxing and fun!* (Qwen, Stardew Valley, plain style)
+
+The detector learned Mistral's habits ("Can't wait…" in 12.0% of Mistral reviews, 0.2% of Qwen ones), not AI writing in general. A lower threshold does not help: at the threshold that flags 1% of validation humans (0.127), Qwen recall rises only from 77.1% to 78.7%.
+
+**2. Short, enthusiastic human reviews are flagged as AI.** The real players DistilBERT is surest about (AI score 1.000) write like Mistral:
+
+> *Perfection! A must-have!* (The Witcher 3, 2016)
+
+Reviews of five words or fewer are flagged 1.93% of the time, against 0.32% at 100–300 words. Reviews with few common English words (mostly non-English text that passed cleaning) are flagged 3.1% of the time, against 0.9% for the rest.
+
+**3. Small edits fool the baselines.** Lowercasing the first letter, writing "i", dropping apostrophes and the final full stop lowers TF-IDF + logistic regression's Qwen recall from 67.1% to 47.7%. The simple-features model drops from 71.3% to 0.0% (`stress_test.csv`).
+
+**What did not hold up:** we expected old human reviews to look "more human" than recent ones, but DistilBERT's false-positive rate is flat across 2015–2022 (`reserve_fpr_by_group.csv`).
+
 ## Where to find what
 
 | Path | Content |
@@ -50,7 +70,10 @@ All models are trained on the Mistral `train` split only. **Test** = Mistral rev
 | `scripts/clean_reviews.py` | cleans the raw reviews and counts what each rule removes |
 | `scripts/build_dataset.py` | combines human and AI reviews into `data/final/dataset_v1.csv` with a fixed split |
 | `failure-journal.md` | dated list of what we tried and what did not work |
-| `data/sample/` | small anonymised sample of the data (the full data is not published) |
+| `data/sample/` | small samples: 48 human reviews (anonymised) and 48 AI-generated reviews (24 Mistral, 24 Qwen, no ids); the full data is not published |
+| `scripts/make_sample.py`, `scripts/make_ai_sample.py` | make the two samples |
+| `scripts/error_analysis.py` | error analysis for the report: missed Qwen reviews, flagged players, stress test, thresholds, confidence intervals |
+| `results/06_error_analysis/` | its output tables and a few short failure quotes |
 | `data/raw/`, `data/clean/` | collected and cleaned reviews, kept locally only (git-ignored) |
 | `notebooks/` | `01` exploration of human reviews, `02`/`02b` AI generation and length fix, `03` simple features and baselines, `04` Keras models, `05` DistilBERT (all run in Colab) |
 | `data/ai/` | generated AI reviews, kept on the team's Google Drive (git-ignored) |
@@ -116,13 +139,13 @@ The median kept review is 19 words long. We read a random sample of 25 removed r
 - Days 1–10 of a month hold 23.7% of the reviews instead of about 33%, because the 7-day slice must fit inside the month.
 - The month a game came out can be missing when its random slice fell before the release day.
 - Year and game are linked: 2015–2016 reviews come only from the oldest games.
-- The human reviews are from 2015–2022, the AI reviews will be from 2026, so the model could partly learn "old vs new" language. We will check errors by year.
+- The human reviews are from 2015–2022 and the AI reviews were generated in 2026, so the model could partly learn "old vs new" language. We checked the human side: the false-positive rate does not rise or fall with the year (`results/06_error_analysis/reserve_fpr_by_group.csv`).
 - Mixed-language reviews and reviews edited after 29 Nov 2022 are excluded.
 - The language check only catches non-Latin scripts: a non-English review written in plain Latin letters passes (e.g. Vietnamese without accents: "game hay vcl du ma no'").
 
 ### AI reviews
 
-Generated in Google Colab (free T4 GPU) with two open models from Hugging Face, loaded in 4-bit:
+Generated in Google Colab on a GPU (the notebook also runs on the free T4; the timings in this README and the failure journal were measured on an L4) with two open models from Hugging Face, loaded in 4-bit:
 
 | Generator | Model | Reviews | Role |
 | --- | --- | --- | --- |
@@ -134,6 +157,8 @@ Generated in Google Colab (free T4 GPU) with two open models from Hugging Face, 
 - **Split** (`scripts/build_dataset.py`, see "Final dataset" below). The Mistral pairs are split 70/15/15 into train, validation and test **by pair**, stratified by game: a human review and its AI twin always land in the same set, so the model cannot learn the pair instead of the writing style. The Qwen pairs (5,516 reviews) are only a held-out test.
 - **Prompt (v2).** The model writes as the player ("You have played X and you are writing your own user review of it on Steam... first person, not like an advertisement"). Prompt v1 gave advert-like text, see the failure journal. One prompt per review, containing only the game name, the recommendation, the target length and one of five styles (casual, detailed, emotional, humorous, plain), picked at random. The human review text is never sent to the model.
 - **Sampling.** temperature 0.9, top_p 0.95, repetition penalty 1.05, the same for both models. Prompt, model and settings are stored with every raw output.
+- **Not exactly reproducible.** A new run produces similar reviews, not the same ones: sampling is random (seed per batch), library and model versions are not pinned, and 4-bit GPU generation is not bit-for-bit deterministic. The method is reproducible; the texts are not, so all later steps use the one shared `dataset_v1.csv`.
+- **Test mode.** `notebooks/02_generate_ai_reviews.ipynb` is committed with `TEST_RUN = True` (100 reviews, to measure speed). Set it to `False` for a full run.
 - **Length fix.** The models ignore short targets (median AI 29 words vs. target 18 in the first Mistral run). Reviews far from their target length (more than 1.5 × target + 3 words, or fewer than target / 1.5 − 3) are regenerated with a hard limit ("at most / at least N words"), 4 candidates each, and the closest is kept (`length_fix = True`). This is a separate notebook, `notebooks/02b_fix_lengths.ipynb`, which writes a new file `ai_reviews_clean_lengthfix.csv`; the original `ai_reviews_clean.csv` from notebook 02 is kept for comparison.
 - **Cleaning.** Chat wrappers are stripped and counted ("Here is a review:", "Review:", markdown, surrounding quotes, "(Word count: 25)"). Then the same rules as for the human reviews are applied, from `scripts/clean_reviews.py`.
 
@@ -198,6 +223,8 @@ python scripts/clean_reviews.py              # writes data/clean/v3/
 # notebooks/02_generate_ai_reviews.ipynb and 02b_fix_lengths.ipynb in Colab -> data/ai/v1/
 python scripts/build_dataset.py              # writes data/final/dataset_v1.csv
 # notebooks 03 (CPU), 04 and 05 (GPU) in Colab -> results/03_baselines/, results/04_models/
+python scripts/error_analysis.py             # CPU, about a minute -> results/06_error_analysis/
+python scripts/make_ai_sample.py             # -> data/sample/ai_reviews_sample.csv
 ```
 
 Then run `notebooks/01_explore_human_reviews.ipynb`. The cleaning step writes `reviews_clean.csv`, `cleaning_report.json` (counts per rule, overall and per game) and `dropped_examples.csv` (25 randomly picked removed reviews per rule) into `data/clean/v3/`.
