@@ -17,7 +17,7 @@ Last updated: 26 November 2026.
 | Train/validation/test split | done: `scripts/build_dataset.py` → `data/final/dataset_v1.csv` (one file for all later steps) |
 | Simple features and baselines | done: `notebooks/03_features_and_baselines.ipynb` |
 | Models (MLP + ablation, CNN, BiLSTM, DistilBERT) | done: `notebooks/04_keras_models.ipynb`, `05_distilbert.ipynb` |
-| Error analysis | done: `scripts/error_analysis.py` → `results/06_error_analysis/`, summary in [Analysed failure cases](#analysed-failure-cases) |
+| Error analysis | done: `notebooks/06_error_analysis.ipynb` → `results/06_error_analysis/`, summary in [Analysed failure cases](#analysed-failure-cases) |
 
 ## Results
 
@@ -44,7 +44,7 @@ All models are trained on the Mistral `train` split only. **Test** = Mistral rev
 
 ## Analysed failure cases
 
-All numbers come from `results/06_error_analysis/` (script `scripts/error_analysis.py`). It uses the saved predictions of notebooks 04 and 05 and refits the two scikit-learn baselines; nothing is retrained on a GPU.
+All numbers come from `results/06_error_analysis/` (notebook `notebooks/06_error_analysis.ipynb`). It uses the saved predictions of notebooks 04 and 05 and refits the two scikit-learn baselines; nothing is retrained on a GPU.
 
 **1. Qwen reviews that start with "This game" are taken for human.** DistilBERT misses 632 of the 2,758 Qwen reviews, and it is sure about it: the median AI score of a missed review is 0.000. Mistral never starts a review with "This game" (0.0%), so in training every review that does is human. 41.1% of the missed Qwen reviews start this way (13.2% of all Qwen reviews, 4.8% of human ones). Example, AI score 0.000:
 
@@ -72,10 +72,9 @@ Reviews of five words or fewer are flagged 1.93% of the time, against 0.32% at 1
 | `failure-journal.md` | dated list of what we tried and what did not work |
 | `data/sample/` | small samples: 48 human reviews (anonymised) and 48 AI-generated reviews (24 Mistral, 24 Qwen, no ids); the full data is not published |
 | `scripts/make_sample.py`, `scripts/make_ai_sample.py` | make the two samples |
-| `scripts/error_analysis.py` | error analysis for the report: missed Qwen reviews, flagged players, stress test, thresholds, confidence intervals |
-| `results/06_error_analysis/` | its output tables and a few short failure quotes |
+| `results/06_error_analysis/` | output tables of notebook 06 and a few short failure quotes |
 | `data/raw/`, `data/clean/` | collected and cleaned reviews, kept locally only (git-ignored) |
-| `notebooks/` | `01` exploration of human reviews, `02`/`02b` AI generation and length fix, `03` simple features and baselines, `04` Keras models, `05` DistilBERT (all run in Colab) |
+| `notebooks/` | `01` exploration of human reviews, `02`/`02b` AI generation and length fix, `03` simple features and baselines, `04` Keras models, `05` DistilBERT (all run in Colab), `06` error analysis (CPU, Colab or locally): missed Qwen reviews, flagged players, stress test, thresholds, confidence intervals |
 | `data/ai/` | generated AI reviews, kept on the team's Google Drive (git-ignored) |
 | `results/` | metrics tables, run log, charts and confusion matrices per notebook (`03_baselines/`, `04_models/`) |
 
@@ -223,7 +222,7 @@ python scripts/clean_reviews.py              # writes data/clean/v3/
 # notebooks/02_generate_ai_reviews.ipynb and 02b_fix_lengths.ipynb in Colab -> data/ai/v1/
 python scripts/build_dataset.py              # writes data/final/dataset_v1.csv
 # notebooks 03 (CPU), 04 and 05 (GPU) in Colab -> results/03_baselines/, results/04_models/
-python scripts/error_analysis.py             # CPU, about a minute -> results/06_error_analysis/
+# notebook 06 (CPU, Colab or locally)          -> results/06_error_analysis/
 python scripts/make_ai_sample.py             # -> data/sample/ai_reviews_sample.csv
 ```
 
